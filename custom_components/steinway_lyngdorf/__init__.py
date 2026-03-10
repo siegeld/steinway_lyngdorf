@@ -12,7 +12,7 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from .steinway_p100 import SteinwayP100Device
 from .steinway_p100.exceptions import ConnectionError
 
-from .const import DOMAIN
+from .const import CONF_ZMAN_HOST, DOMAIN
 from .coordinator import SteinwayLyngdorfCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -33,7 +33,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         raise ConfigEntryNotReady(f"Cannot connect to {host}:{port}") from err
     
     # Create coordinator
-    coordinator = SteinwayLyngdorfCoordinator(hass, device, host, port)
+    zman_host = entry.data.get(CONF_ZMAN_HOST)
+    coordinator = SteinwayLyngdorfCoordinator(hass, device, host, port, zman_host)
     
     # Fetch initial data
     await coordinator.async_config_entry_first_refresh()

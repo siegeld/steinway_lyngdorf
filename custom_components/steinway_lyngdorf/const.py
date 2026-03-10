@@ -23,5 +23,6 @@ ATTR_POSITION_NAME = "position_name"
 ATTR_DELAY_MS = "delay_ms"
 
 # AES67/ZMAN
+CONF_ZMAN_HOST = "zman_host"
 ZMAN_PORT = 80
 MEDIA_TYPE_AES67 = "aes67_stream"

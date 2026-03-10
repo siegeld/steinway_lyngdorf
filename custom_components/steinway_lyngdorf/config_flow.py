@@ -14,7 +14,7 @@ from homeassistant.data_entry_flow import FlowResult
 from .steinway_p100 import SteinwayP100Device
 from .steinway_p100.exceptions import ConnectionError
 
-from .const import DOMAIN
+from .const import CONF_ZMAN_HOST, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,6 +22,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_HOST): str,
         vol.Optional(CONF_PORT, default=84): int,
+        vol.Optional(CONF_ZMAN_HOST): str,
     }
 )
 

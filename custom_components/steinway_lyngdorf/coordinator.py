@@ -12,7 +12,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .steinway_p100 import SteinwayP100Device, PowerState
 from .steinway_p100.exceptions import ConnectionError, TimeoutError
 from .zman_sdk import ZMANClient
-from .const import ZMAN_PORT
+from .const import CONF_ZMAN_HOST, ZMAN_PORT
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,6 +28,7 @@ class SteinwayLyngdorfCoordinator(DataUpdateCoordinator):
         device: SteinwayP100Device,
         host: str,
         port: int,
+        zman_host: str | None = None,
     ) -> None:
         """Initialize the coordinator."""
         super().__init__(
@@ -39,6 +40,7 @@ class SteinwayLyngdorfCoordinator(DataUpdateCoordinator):
         self.device = device
         self._host = host
         self._port = port
+        self._zman_host = zman_host or host
         self._reconnect_task: asyncio.Task | None = None
         self._available = True
         self._zman: ZMANClient | None = None
@@ -165,7 +167,7 @@ class SteinwayLyngdorfCoordinator(DataUpdateCoordinator):
     async def async_get_zman(self) -> ZMANClient:
         """Lazily create and connect the ZMAN client."""
         if self._zman is None:
-            client = ZMANClient(self._host, ZMAN_PORT)
+            client = ZMANClient(self._zman_host, ZMAN_PORT)
             await self.hass.async_add_executor_job(client.connect)
             self._zman = client
         return self._zman
