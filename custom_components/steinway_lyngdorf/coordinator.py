@@ -17,6 +17,8 @@ from .const import CONF_ZMAN_HOST, ZMAN_PORT
 _LOGGER = logging.getLogger(__name__)
 
 UPDATE_INTERVAL = timedelta(seconds=5)
+UPDATE_INTERVAL_FAST = timedelta(seconds=1)
+FAST_POLL_COUNT = 10  # 10 fast polls after power on
 
 
 class SteinwayLyngdorfCoordinator(DataUpdateCoordinator):
@@ -45,6 +47,8 @@ class SteinwayLyngdorfCoordinator(DataUpdateCoordinator):
         self._available = True
         self._zman: ZMANClient | None = None
         self.current_aes67_stream: str | None = None
+        self._last_power_state: PowerState | None = None
+        self._fast_polls_remaining = 0
     
     @property
     def available(self) -> bool:
@@ -66,6 +70,20 @@ class SteinwayLyngdorfCoordinator(DataUpdateCoordinator):
                 "zone2_power_state": await self.device.zone2_power.status(),
             }
             
+            # Detect power-on transition → fast polling
+            power = data["power_state"]
+            if power == PowerState.ON and self._last_power_state != PowerState.ON:
+                self._fast_polls_remaining = FAST_POLL_COUNT
+                self.update_interval = UPDATE_INTERVAL_FAST
+                _LOGGER.debug("Power on detected, switching to fast polling")
+            self._last_power_state = power
+
+            if self._fast_polls_remaining > 0:
+                self._fast_polls_remaining -= 1
+                if self._fast_polls_remaining == 0:
+                    self.update_interval = UPDATE_INTERVAL
+                    _LOGGER.debug("Fast polling complete, back to %ss", UPDATE_INTERVAL.total_seconds())
+
             # Get additional data if powered on
             if data["power_state"] == PowerState.ON:
                 try:

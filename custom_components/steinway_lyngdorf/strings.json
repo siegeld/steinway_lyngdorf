@@ -9,6 +9,15 @@
           "port": "Port",
           "zman_host": "ZMAN host (IP of AES67/RAVENNA module, if different from main host)"
         }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Steinway Lyngdorf",
+        "description": "Update connection settings.",
+        "data": {
+          "host": "Host (IP address or hostname)",
+          "port": "Port",
+          "zman_host": "ZMAN host (IP of AES67/RAVENNA module, if different from main host)"
+        }
       }
     },
     "error": {
