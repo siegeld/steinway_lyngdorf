@@ -7,6 +7,9 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.components.media_player import (
+    BrowseError,
+    BrowseMedia,
+    MediaClass,
     MediaPlayerEntity,
     MediaPlayerEntityFeature,
     MediaPlayerState,
@@ -35,6 +38,7 @@ from .const import (
     ATTR_POSITION_INDEX,
     ATTR_POSITION_NAME,
     DOMAIN,
+    MEDIA_TYPE_AES67,
     SERVICE_SET_AUDIO_MODE,
     SERVICE_SET_LIPSYNC,
     SERVICE_SET_ROOM_PERFECT,
@@ -114,6 +118,8 @@ class SteinwayLyngdorfMediaPlayer(CoordinatorEntity[SteinwayLyngdorfCoordinator]
             | MediaPlayerEntityFeature.VOLUME_STEP
             | MediaPlayerEntityFeature.VOLUME_MUTE
             | MediaPlayerEntityFeature.SELECT_SOURCE
+            | MediaPlayerEntityFeature.BROWSE_MEDIA
+            | MediaPlayerEntityFeature.PLAY_MEDIA
         )
         
         # Add media control features if media API is available
@@ -384,3 +390,57 @@ class SteinwayLyngdorfMediaPlayer(CoordinatorEntity[SteinwayLyngdorfCoordinator]
         if self.coordinator.device.media:
             await self.coordinator.device.media.previous_track()
             await self.coordinator.async_request_refresh()
+
+    async def async_browse_media(
+        self,
+        media_content_type: str | None = None,
+        media_content_id: str | None = None,
+    ) -> BrowseMedia:
+        """Browse AES67 streams discovered via ZMAN/SAP."""
+        source_name = self.source or ""
+        if "aes67" not in source_name.lower():
+            raise BrowseError("AES67 media browse is only available when the source is set to AES67")
+
+        zman = await self.coordinator.async_get_zman()
+        discovered = await self.hass.async_add_executor_job(zman.get_discovered_sources)
+
+        children = [
+            BrowseMedia(
+                title=uri.removeprefix("sap://"),
+                media_class=MediaClass.MUSIC,
+                media_content_id=uri,
+                media_content_type=MEDIA_TYPE_AES67,
+                can_play=True,
+                can_expand=False,
+            )
+            for uri in discovered
+        ]
+
+        return BrowseMedia(
+            title="AES67 Streams",
+            media_class=MediaClass.DIRECTORY,
+            media_content_id="aes67",
+            media_content_type=MEDIA_TYPE_AES67,
+            can_play=False,
+            can_expand=True,
+            children=children,
+        )
+
+    async def async_play_media(
+        self,
+        media_type: str,
+        media_id: str,
+        **kwargs: Any,
+    ) -> None:
+        """Play an AES67 stream by routing it via ZMAN."""
+        if media_type != MEDIA_TYPE_AES67:
+            _LOGGER.warning("Unsupported media type: %s", media_type)
+            return
+
+        zman = await self.coordinator.async_get_zman()
+        await self.hass.async_add_executor_job(
+            zman.create_path,
+            media_id,  # source SAP URI
+            [8, 9],    # output_channels: Lyngdorf L/R on OEM I2S group 30
+        )
+        _LOGGER.info("Routed AES67 stream %s to Lyngdorf channels 8,9", media_id)

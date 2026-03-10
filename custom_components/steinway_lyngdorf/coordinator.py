@@ -11,6 +11,8 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .steinway_p100 import SteinwayP100Device, PowerState
 from .steinway_p100.exceptions import ConnectionError, TimeoutError
+from .zman_sdk import ZMANClient
+from .const import ZMAN_PORT
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,6 +41,7 @@ class SteinwayLyngdorfCoordinator(DataUpdateCoordinator):
         self._port = port
         self._reconnect_task: asyncio.Task | None = None
         self._available = True
+        self._zman: ZMANClient | None = None
     
     @property
     def available(self) -> bool:
@@ -158,3 +161,17 @@ class SteinwayLyngdorfCoordinator(DataUpdateCoordinator):
         except Exception as err:
             _LOGGER.error("Failed to set audio mode: %s", err)
             raise
+
+    async def async_get_zman(self) -> ZMANClient:
+        """Lazily create and connect the ZMAN client."""
+        if self._zman is None:
+            client = ZMANClient(self._host, ZMAN_PORT)
+            await self.hass.async_add_executor_job(client.connect)
+            self._zman = client
+        return self._zman
+
+    async def async_close_zman(self) -> None:
+        """Close the ZMAN client if connected."""
+        if self._zman is not None:
+            await self.hass.async_add_executor_job(self._zman.close)
+            self._zman = None

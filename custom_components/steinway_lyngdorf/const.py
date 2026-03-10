@@ -21,3 +21,7 @@ ATTR_MODE_NAME = "mode_name"
 ATTR_POSITION_INDEX = "position_index"
 ATTR_POSITION_NAME = "position_name"
 ATTR_DELAY_MS = "delay_ms"
+
+# AES67/ZMAN
+ZMAN_PORT = 80
+MEDIA_TYPE_AES67 = "aes67_stream"
