@@ -412,7 +412,8 @@ class SteinwayLyngdorfMediaPlayer(CoordinatorEntity[SteinwayLyngdorfCoordinator]
 
         try:
             zman = await self.coordinator.async_get_zman()
-            discovered = await self.hass.async_add_executor_job(zman.get_discovered_sources)
+            discovered = await self.hass.async_add_executor_job(zman.get_discovered_sources, _LOGGER)
+            _LOGGER.info("ZMAN discovered sources (%d): %s", len(discovered), discovered)
         except Exception as err:
             # ZMAN module may be unreachable (device off, network issue)
             self.coordinator._zman = None  # Reset so next attempt reconnects

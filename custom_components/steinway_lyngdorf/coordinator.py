@@ -115,26 +115,21 @@ class SteinwayLyngdorfCoordinator(DataUpdateCoordinator):
                         except Exception as err:
                             _LOGGER.debug("Error fetching media info: %s", err)
 
-                    # AES67 stream detection via ZMAN sinks
-                    if "aes67" in data.get("source_name", "").lower():
+                    # AES67 stream detection via ZMAN sinks (discovery only)
+                    if "aes67" not in data.get("source_name", "").lower():
+                        self.current_aes67_stream = None
+                    elif self.current_aes67_stream is None:
+                        # No stream set (startup/recovery) — discover from sinks
                         try:
                             zman = await self.async_get_zman()
                             sinks = await self.hass.async_add_executor_job(zman.get_sinks)
-                            # Find first connected sink with a sap:// source
-                            active_source = None
                             for sink in sinks:
                                 src = sink.get("source", "")
                                 if src.startswith("sap://") and sink.get("state_code", 0) >= 2:
-                                    active_source = src
+                                    self.current_aes67_stream = src
                                     break
-                            if active_source:
-                                self.current_aes67_stream = active_source
-                            elif not sinks:
-                                self.current_aes67_stream = None
                         except Exception as err:
                             _LOGGER.debug("Error fetching ZMAN sinks: %s", err)
-                    else:
-                        self.current_aes67_stream = None
 
                 except Exception as err:
                     _LOGGER.debug("Error fetching extended data: %s", err)
