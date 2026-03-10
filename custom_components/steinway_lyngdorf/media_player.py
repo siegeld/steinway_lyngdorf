@@ -401,8 +401,13 @@ class SteinwayLyngdorfMediaPlayer(CoordinatorEntity[SteinwayLyngdorfCoordinator]
         if "aes67" not in source_name.lower():
             raise BrowseError("AES67 media browse is only available when the source is set to AES67")
 
-        zman = await self.coordinator.async_get_zman()
-        discovered = await self.hass.async_add_executor_job(zman.get_discovered_sources)
+        try:
+            zman = await self.coordinator.async_get_zman()
+            discovered = await self.hass.async_add_executor_job(zman.get_discovered_sources)
+        except Exception as err:
+            # ZMAN module may be unreachable (device off, network issue)
+            self.coordinator._zman = None  # Reset so next attempt reconnects
+            raise BrowseError(f"Cannot connect to ZMAN module: {err}") from err
 
         children = [
             BrowseMedia(
@@ -437,10 +442,14 @@ class SteinwayLyngdorfMediaPlayer(CoordinatorEntity[SteinwayLyngdorfCoordinator]
             _LOGGER.warning("Unsupported media type: %s", media_type)
             return
 
-        zman = await self.coordinator.async_get_zman()
-        await self.hass.async_add_executor_job(
-            zman.create_path,
-            media_id,  # source SAP URI
-            [8, 9],    # output_channels: Lyngdorf L/R on OEM I2S group 30
-        )
-        _LOGGER.info("Routed AES67 stream %s to Lyngdorf channels 8,9", media_id)
+        try:
+            zman = await self.coordinator.async_get_zman()
+            await self.hass.async_add_executor_job(
+                zman.create_path,
+                media_id,  # source SAP URI
+                [8, 9],    # output_channels: Lyngdorf L/R on OEM I2S group 30
+            )
+            _LOGGER.info("Routed AES67 stream %s to Lyngdorf channels 8,9", media_id)
+        except Exception as err:
+            self.coordinator._zman = None
+            _LOGGER.error("Failed to route AES67 stream: %s", err)
