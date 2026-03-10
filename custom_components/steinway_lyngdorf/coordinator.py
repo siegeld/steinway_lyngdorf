@@ -44,6 +44,7 @@ class SteinwayLyngdorfCoordinator(DataUpdateCoordinator):
         self._reconnect_task: asyncio.Task | None = None
         self._available = True
         self._zman: ZMANClient | None = None
+        self.current_aes67_stream: str | None = None
     
     @property
     def available(self) -> bool:

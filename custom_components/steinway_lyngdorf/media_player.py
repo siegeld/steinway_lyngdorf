@@ -164,6 +164,10 @@ class SteinwayLyngdorfMediaPlayer(CoordinatorEntity[SteinwayLyngdorfCoordinator]
         if power_state == PowerState.OFF:
             return MediaPlayerState.OFF
         
+        # AES67 stream routed
+        if self.coordinator.current_aes67_stream:
+            return MediaPlayerState.PLAYING
+
         # Check media playback state if available
         media_info = self.coordinator.data.get("media_info")
         if media_info:
@@ -171,7 +175,7 @@ class SteinwayLyngdorfMediaPlayer(CoordinatorEntity[SteinwayLyngdorfCoordinator]
                 return MediaPlayerState.PLAYING
             elif media_info.state == PlaybackState.PAUSED:
                 return MediaPlayerState.PAUSED
-        
+
         return MediaPlayerState.IDLE
     
     @property
@@ -204,6 +208,8 @@ class SteinwayLyngdorfMediaPlayer(CoordinatorEntity[SteinwayLyngdorfCoordinator]
     @property
     def media_title(self) -> str | None:
         """Return the title of current playing media."""
+        if self.coordinator.current_aes67_stream:
+            return self.coordinator.current_aes67_stream.removeprefix("sap://")
         if not self.coordinator.data:
             return None
         media_info = self.coordinator.data.get("media_info")
@@ -300,6 +306,7 @@ class SteinwayLyngdorfMediaPlayer(CoordinatorEntity[SteinwayLyngdorfCoordinator]
     
     async def async_turn_off(self) -> None:
         """Turn the media player off."""
+        self.coordinator.current_aes67_stream = None
         await self.coordinator.device.power.off()
         await self.coordinator.async_request_refresh()
     
@@ -330,6 +337,8 @@ class SteinwayLyngdorfMediaPlayer(CoordinatorEntity[SteinwayLyngdorfCoordinator]
     
     async def async_select_source(self, source: str) -> None:
         """Select input source."""
+        if "aes67" not in source.lower():
+            self.coordinator.current_aes67_stream = None
         await self.coordinator.device.source.select_by_name(source)
         await self.coordinator.async_request_refresh()
     
@@ -450,6 +459,8 @@ class SteinwayLyngdorfMediaPlayer(CoordinatorEntity[SteinwayLyngdorfCoordinator]
                 [8, 9],    # output_channels: Lyngdorf L/R on OEM I2S group 30
             )
             _LOGGER.info("Routed AES67 stream %s to Lyngdorf channels 8,9", media_id)
+            self.coordinator.current_aes67_stream = media_id
+            self.async_write_ha_state()
         except Exception as err:
             self.coordinator._zman = None
             _LOGGER.error("Failed to route AES67 stream: %s", err)
