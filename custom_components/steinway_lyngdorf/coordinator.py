@@ -16,7 +16,7 @@ from .const import CONF_ZMAN_HOST, ZMAN_PORT
 
 _LOGGER = logging.getLogger(__name__)
 
-UPDATE_INTERVAL = timedelta(seconds=10)
+UPDATE_INTERVAL = timedelta(seconds=5)
 
 
 class SteinwayLyngdorfCoordinator(DataUpdateCoordinator):
