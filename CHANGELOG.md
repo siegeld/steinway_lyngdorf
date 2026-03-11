@@ -8,13 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Nothing yet
+- Real-time state updates via push notifications — device pushes (VOL, SRC, MUTE, POWER, AUDMODE, AUDTYPE) are parsed and update HA state instantly
+- Notification callback in connection layer (`set_notification_callback`) for unsolicited `!`-prefixed messages
+- AES67 stream info clears immediately on source change away from AES67
 
 ### Changed
-- Nothing yet
+- Poll interval increased from 5s to 30s (polling is now a fallback/keepalive)
+- Mute state now tracked via push notifications instead of hardcoded False
 
 ### Fixed
-- Nothing yet
+- Mute state now reflects actual device state via push notifications
+- External changes (remote, web UI) now reflected in HA within ~1 second instead of up to 5s
 
 ## [0.3.6] - 2025-07-31
 
