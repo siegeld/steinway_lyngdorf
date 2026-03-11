@@ -30,6 +30,7 @@ class BaseConnection(ABC):
         self._response_handler: Optional[Callable] = None
         self._read_task: Optional[asyncio.Task] = None
         self._monitor_callback: Optional[Callable[[str, str], None]] = None
+        self._notification_callback: Optional[Callable[[str], None]] = None
 
     @abstractmethod
     async def connect(self) -> None:
@@ -191,6 +192,8 @@ class BaseConnection(ABC):
 
                         # Handle based on prefix
                         if line.startswith(RESPONSE_PREFIX):
+                            if self._notification_callback:
+                                self._notification_callback(line)
                             if self._response_handler:
                                 self._response_handler(line)
                         elif line.startswith(ECHO_PREFIX):
@@ -206,6 +209,17 @@ class BaseConnection(ABC):
     def set_feedback_level(self, level: FeedbackLevel) -> None:
         """Set the feedback verbosity level."""
         self._feedback_level = level
+
+    def set_notification_callback(
+        self, callback: Optional[Callable[[str], None]]
+    ) -> None:
+        """
+        Set a callback for unsolicited device notifications.
+
+        Args:
+            callback: Function that receives a raw response line (e.g. '!VOL(-300)')
+        """
+        self._notification_callback = callback
 
     def set_monitor_callback(
         self, callback: Optional[Callable[[str, str], None]]

@@ -133,7 +133,6 @@ class SteinwayLyngdorfMediaPlayer(CoordinatorEntity[SteinwayLyngdorfCoordinator]
         
         self._source_list: list[str] = []
         self._audio_modes: list[str] = []
-        self._is_muted: bool = False  # Track mute state locally
         
     async def async_added_to_hass(self) -> None:
         """Run when entity is added to hass."""
@@ -190,8 +189,9 @@ class SteinwayLyngdorfMediaPlayer(CoordinatorEntity[SteinwayLyngdorfCoordinator]
     @property
     def is_volume_muted(self) -> bool:
         """Return true if volume is muted."""
-        # P100 doesn't report mute status reliably, so we track it locally
-        return self._is_muted
+        if not self.coordinator.data:
+            return False
+        return self.coordinator.data.get("is_muted", False)
     
     @property
     def source(self) -> str | None:
@@ -332,8 +332,8 @@ class SteinwayLyngdorfMediaPlayer(CoordinatorEntity[SteinwayLyngdorfCoordinator]
             await self.coordinator.device.volume.mute()
         else:
             await self.coordinator.device.volume.unmute()
-        self._is_muted = mute
-        self.async_write_ha_state()
+        # Push notification from the device will update coordinator.data["is_muted"]
+        await self.coordinator.async_request_refresh()
     
     async def async_select_source(self, source: str) -> None:
         """Select input source."""

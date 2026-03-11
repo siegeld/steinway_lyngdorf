@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 from datetime import timedelta
 import logging
+import re
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -16,7 +17,7 @@ from .const import CONF_ZMAN_HOST, ZMAN_PORT
 
 _LOGGER = logging.getLogger(__name__)
 
-UPDATE_INTERVAL = timedelta(seconds=5)
+UPDATE_INTERVAL = timedelta(seconds=30)
 UPDATE_INTERVAL_FAST = timedelta(seconds=1)
 FAST_POLL_COUNT = 10  # 10 fast polls after power on
 
@@ -90,9 +91,11 @@ class SteinwayLyngdorfCoordinator(DataUpdateCoordinator):
                     # Volume
                     data["volume"] = await self.device.volume.get()
                     
-                    # Mute status - The P100 doesn't reliably respond to MUTE?
-                    # so we don't query it to avoid timeouts
-                    data["is_muted"] = False
+                    # Preserve mute state from push notifications;
+                    # fall back to False on first poll (MUTE? query unreliable)
+                    data["is_muted"] = (
+                        self.data.get("is_muted", False) if self.data else False
+                    )
                     
                     # Source
                     current_source = await self.device.source.get_current()
@@ -160,9 +163,10 @@ class SteinwayLyngdorfCoordinator(DataUpdateCoordinator):
                 
                 # Try to reconnect
                 await self.device.connect()
+                self.device.set_notification_callback(self._handle_notification)
                 _LOGGER.info("Successfully reconnected to %s:%s", self._host, self._port)
                 self._available = True
-                
+
                 # Force an update
                 await self.async_request_refresh()
                 return
@@ -206,6 +210,72 @@ class SteinwayLyngdorfCoordinator(DataUpdateCoordinator):
             await self.hass.async_add_executor_job(client.connect)
             self._zman = client
         return self._zman
+
+    def _handle_notification(self, line: str) -> None:
+        """Handle an unsolicited push notification from the device."""
+        if self.data is None:
+            return
+
+        updated = dict(self.data)
+        changed = False
+
+        # Power
+        m = re.match(r"!POWER\((\d)\)$", line)
+        if m:
+            updated["power_state"] = PowerState(int(m.group(1)))
+            changed = True
+
+        # Zone 2 power
+        m = re.match(r"!POWERZONE2\((\d)\)$", line)
+        if m:
+            updated["zone2_power_state"] = PowerState(int(m.group(1)))
+            changed = True
+
+        # Volume
+        m = re.match(r"!VOL\((-?\d+)\)$", line)
+        if m:
+            updated["volume"] = int(m.group(1)) / 10.0
+            changed = True
+
+        # Mute
+        m = re.match(r"!MUTE\((\d)\)$", line)
+        if m:
+            updated["is_muted"] = m.group(1) == "1"
+            changed = True
+
+        # Source
+        m = re.match(r'!SRC\((\d+)\)"([^"]+)"', line)
+        if m:
+            updated["source_index"] = int(m.group(1))
+            updated["source_name"] = m.group(2)
+            if "aes67" not in m.group(2).lower():
+                self.current_aes67_stream = None
+            changed = True
+
+        # Audio mode
+        m = re.match(r'!AUDMODE\((\d+)\)"([^"]+)"', line)
+        if m:
+            updated["audio_mode_index"] = int(m.group(1))
+            updated["audio_mode"] = m.group(2)
+            changed = True
+
+        # Audio type
+        m = re.match(r"!AUDTYPE\(([^)]+)\)$", line)
+        if m:
+            content = m.group(1)
+            parts = content.split(",", 1)
+            audio_format = parts[0].strip()
+            if audio_format == "No Information":
+                updated["audio_type"] = "No Information"
+            elif len(parts) == 2:
+                updated["audio_type"] = f"{audio_format} {parts[1].strip()}"
+            else:
+                updated["audio_type"] = audio_format
+            changed = True
+
+        if changed:
+            _LOGGER.debug("Push update from device: %s", line)
+            self.async_set_updated_data(updated)
 
     async def async_close_zman(self) -> None:
         """Close the ZMAN client if connected."""

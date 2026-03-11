@@ -35,7 +35,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Create coordinator
     zman_host = entry.data.get(CONF_ZMAN_HOST)
     coordinator = SteinwayLyngdorfCoordinator(hass, device, host, port, zman_host)
-    
+
+    # Register push notification callback for real-time state updates
+    device.set_notification_callback(coordinator._handle_notification)
+
     # Fetch initial data
     await coordinator.async_config_entry_first_refresh()
     

@@ -1,7 +1,7 @@
 """Main device class for Steinway P100."""
 
 import logging
-from typing import Optional
+from typing import Callable, Optional
 
 from .connection import BaseConnection, TCPConnection, SerialConnection
 from .controls import PowerControl, VolumeControl, SourceControl, AudioModeControl
@@ -84,6 +84,13 @@ class SteinwayP100Device:
         command = CommandBuilder.feedback_level(level)
         await self._connection.send_command(command)
         self._connection.set_feedback_level(level)
+
+    def set_notification_callback(
+        self, callback: Optional[Callable[[str], None]]
+    ) -> None:
+        """Set a callback for unsolicited device notifications."""
+        if self._connection:
+            self._connection.set_notification_callback(callback)
 
     @property
     def is_connected(self) -> bool:
