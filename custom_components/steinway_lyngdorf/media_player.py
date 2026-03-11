@@ -332,8 +332,11 @@ class SteinwayLyngdorfMediaPlayer(CoordinatorEntity[SteinwayLyngdorfCoordinator]
             await self.coordinator.device.volume.mute()
         else:
             await self.coordinator.device.volume.unmute()
-        # Push notification from the device will update coordinator.data["is_muted"]
-        await self.coordinator.async_request_refresh()
+        # Update immediately — MUTE? query is unreliable so poll won't catch it
+        if self.coordinator.data is not None:
+            data = dict(self.coordinator.data)
+            data["is_muted"] = mute
+            self.coordinator.async_set_updated_data(data)
     
     async def async_select_source(self, source: str) -> None:
         """Select input source."""

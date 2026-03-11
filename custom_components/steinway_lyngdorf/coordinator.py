@@ -91,8 +91,8 @@ class SteinwayLyngdorfCoordinator(DataUpdateCoordinator):
                     # Volume
                     data["volume"] = await self.device.volume.get()
                     
-                    # Preserve mute state from push notifications;
-                    # fall back to False on first poll (MUTE? query unreliable)
+                    # MUTE? query times out on this device; mute state
+                    # comes from push notifications (!MUTEON / !MUTEOFF)
                     data["is_muted"] = (
                         self.data.get("is_muted", False) if self.data else False
                     )
@@ -237,10 +237,12 @@ class SteinwayLyngdorfCoordinator(DataUpdateCoordinator):
             updated["volume"] = int(m.group(1)) / 10.0
             changed = True
 
-        # Mute
-        m = re.match(r"!MUTE\((\d)\)$", line)
-        if m:
-            updated["is_muted"] = m.group(1) == "1"
+        # Mute — device sends !MUTEON / !MUTEOFF (not !MUTE(0/1))
+        if line == "!MUTEON":
+            updated["is_muted"] = True
+            changed = True
+        elif line == "!MUTEOFF":
+            updated["is_muted"] = False
             changed = True
 
         # Source
@@ -250,6 +252,9 @@ class SteinwayLyngdorfCoordinator(DataUpdateCoordinator):
             updated["source_name"] = m.group(2)
             if "aes67" not in m.group(2).lower():
                 self.current_aes67_stream = None
+            else:
+                # Switched to AES67 — trigger poll to discover ZMAN sink
+                self.hass.async_create_task(self.async_request_refresh())
             changed = True
 
         # Audio mode
