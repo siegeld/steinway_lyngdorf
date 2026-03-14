@@ -137,17 +137,32 @@ class SteinwayLyngdorfMediaPlayer(CoordinatorEntity[SteinwayLyngdorfCoordinator]
     async def async_added_to_hass(self) -> None:
         """Run when entity is added to hass."""
         await super().async_added_to_hass()
-        
-        # Load available sources and audio modes
+        await self._load_sources_and_modes()
+
+    async def _load_sources_and_modes(self) -> None:
+        """Load available sources and audio modes from device."""
         try:
             sources = await self.coordinator.device.source.get_sources()
             self._source_list = [source.name for source in sources]
-            
+
             modes = await self.coordinator.device.audio_mode.get_modes()
             self._audio_modes = [mode.name for mode in modes]
+
+            if self._source_list:
+                self.async_write_ha_state()
         except Exception:
-            _LOGGER.exception("Failed to load sources or audio modes")
+            _LOGGER.debug("Could not load sources/modes (device may be off)")
     
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        if (
+            self.coordinator.data
+            and self.coordinator.data.get("power_state") != PowerState.OFF
+            and not self._source_list
+        ):
+            self.hass.async_create_task(self._load_sources_and_modes())
+        super()._handle_coordinator_update()
+
     @property
     def available(self) -> bool:
         """Return if entity is available."""
