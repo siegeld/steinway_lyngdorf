@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Mute state now reflects actual device state via push notifications
 - External changes (remote, web UI) now reflected in HA within ~1 second instead of up to 5s
+- **state_changed event flood when reading source/audio-mode lists.** The TCP read loop was forwarding every `!`-prefixed line to *both* the active query's response handler *and* the notification callback. List-response entries (`!SRC(i)"name"` from `SRCS?`, `!AUDMODE(i)"name"` from `AUDMODEL?`) were therefore being misread by the coordinator as live source/mode changes, firing N spurious `state_changed` events per query. With repeated queries from `_load_sources_and_modes()`, this overwhelmed every connected websocket client (4096 pending message overflow) and pegged HA at 100%+ CPU. `response_handler` now returns whether it consumed the line; the read loop only forwards unconsumed lines to the notification callback.
 
 ## [0.3.6] - 2025-07-31
 

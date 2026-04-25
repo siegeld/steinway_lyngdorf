@@ -89,7 +89,8 @@ class BaseConnection(ABC):
         expected_count = 0
         collected_count = 0
 
-        def response_handler(data: str):
+        def response_handler(data: str) -> bool:
+            """Return True if the line was consumed as part of this query's response."""
             nonlocal response_data, collecting_list, expected_count, collected_count
 
             # Check if this is the response we're waiting for
@@ -110,6 +111,7 @@ class BaseConnection(ABC):
                         if match:
                             expected_count = int(match.group(1))
                             collected_count = 0
+                        return True
                     elif collecting_list and data.startswith(RESPONSE_PREFIX + "SRC("):
                         # Collect source entry
                         response_data.append(data)
@@ -117,6 +119,7 @@ class BaseConnection(ABC):
                         # Check if we have all items
                         if collected_count >= expected_count:
                             response_event.set()
+                        return True
 
                 elif cmd_prefix == "AUDMODEL":
                     if data.startswith(RESPONSE_PREFIX + "AUDMODECOUNT("):
@@ -130,6 +133,7 @@ class BaseConnection(ABC):
                         if match:
                             expected_count = int(match.group(1))
                             collected_count = 0
+                        return True
                     elif collecting_list and data.startswith(
                         RESPONSE_PREFIX + "AUDMODE("
                     ):
@@ -139,17 +143,22 @@ class BaseConnection(ABC):
                         # Check if we have all items
                         if collected_count >= expected_count:
                             response_event.set()
+                        return True
                 else:
                     # Simple single-line response
                     expected_prefix = RESPONSE_PREFIX + cmd_prefix + "("
                     if data.startswith(expected_prefix):
                         response_data = data
                         response_event.set()
+                        return True
             else:
                 # For non-query commands, exact match
                 if data.startswith(RESPONSE_PREFIX + command):
                     response_data = data
                     response_event.set()
+                    return True
+
+            return False
 
         # Temporarily set response handler
         old_handler = self._response_handler
@@ -192,10 +201,17 @@ class BaseConnection(ABC):
 
                         # Handle based on prefix
                         if line.startswith(RESPONSE_PREFIX):
-                            if self._notification_callback:
-                                self._notification_callback(line)
+                            consumed = False
                             if self._response_handler:
-                                self._response_handler(line)
+                                consumed = bool(self._response_handler(line))
+                            # Only forward to the notification callback if the
+                            # line wasn't a multi-line list-response entry being
+                            # collected by an in-flight query. Otherwise every
+                            # !SRC(i)"name" / !AUDMODE(i)"name" entry returned
+                            # by SRCS?/AUDMODEL? would be misread as a live
+                            # source/mode change and flood state_changed events.
+                            if not consumed and self._notification_callback:
+                                self._notification_callback(line)
                         elif line.startswith(ECHO_PREFIX):
                             # Command echo (feedback level 2)
                             pass
